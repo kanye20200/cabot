@@ -1,8 +1,16 @@
-import influxdb.influxdb08
+# stdlib
 import logging
-
-from django.conf import settings
 from collections import defaultdict
+
+# 3rd party
+import influxdb
+from django.conf import settings
+
+
+QUERY_FORMAT = '''
+    select {selector} from /{pattern}/
+    {where_str} {group_by} {fill_str} {limit_str}
+'''
 
 
 # Keep a globally configured client ready
@@ -16,15 +24,24 @@ def _get_influxdb_client(influxdb_dsn=settings.INFLUXDB_DSN,
     # Keep a globally configured client ready
     global _influxdb_client
 
-    if version == '0.8':
-        client_kls = influxdb.influxdb08.InfluxDBClient
-    else:
-        raise ValueError('InfluxDB version %s is unsupported' % version)
-
+    client_kls = influxdb.InfluxDBClient
     if _influxdb_client is None:
         _influxdb_client = client_kls.from_DSN(influxdb_dsn, timeout=timeout)
 
     return _influxdb_client
+
+
+def _get_series_name(name, tags, tag_order):
+    '''
+    Given a metric name, the tags from the result and the requested tag_order
+    prepare the target name which matches graphite's response.
+    '''
+    if not tags:
+        return name
+
+    taglist = tags.keys()
+    taglist.sort(lambda x, y: cmp(tag_order.index(x), tag_order.index(y)))
+    return '{}.{}'.format(name, '.'.join([tags[k] for k in taglist]))
 
 
 def get_data(pattern, selector='value',
@@ -58,6 +75,8 @@ def get_data(pattern, selector='value',
     if group_by is None:
         group_by = ''
 
+    tag_order = [x.strip() for x in group_by.split(',')]
+
     if group_by:
         group_by = 'group by %s' % group_by
     else:
@@ -86,48 +105,51 @@ def get_data(pattern, selector='value',
     if fetchall:
         pattern = '.*%s.*' % (pattern)
 
-    data = defaultdict(list)
-    query = 'select %s from /%s/ %s %s %s %s order asc' % \
-        (selector, pattern, group_by, fill_str, where_str, limit_str)
-
+    query = QUERY_FORMAT.format(
+        selector=selector,
+        pattern=pattern,
+        group_by=group_by,
+        fill_str=fill_str,
+        where_str=where_str,
+        limit_str=limit_str
+    )
 
     logging.debug('Make influxdb query %s' % query)
 
     client = _get_influxdb_client()
-    resp = client.query(query, chunked=True)
+    resp = client.query(query, params=dict(epoch='s'))
 
     # Convert the result into a graphite compatible output
     # This is a hack to get influxdb working well with cabot
-    for series in resp:
-        name = series['name']
+    data = defaultdict(list)
 
-        if len(series['columns']) == 2:
-            for ts, value in series['points']:
-                data[name].append((value, ts))
-        elif series['columns'][2] == 'value':
-            for ts, seq, value in series['points']:
-                data[name].append((value, ts))
-        else:
-            for ts, value, group in series['points']:
-                data['%s.%s' % (name, group)].append((value, ts))
+    for (name, tags), series in resp.items():
+        name = _get_series_name(name, tags, tag_order)
+
+        for entry in series:
+            data[name].append((entry['value'], entry['time']))
 
     return [dict(target=key, datapoints=value)
             for key, value in data.iteritems()]
 
 
-def get_matching_metrics(pattern):
+def get_matching_metrics(pattern, limit=None):
     '''
     Given a pattern, find all matching metrics for it
     '''
-    query = 'list series /.*%s.*/' % (pattern)
+    query = 'show measurements with measurement =~ /.*{}.*/'.format(pattern)
+
+    if limit:
+        query += ' limit {}'.format(limit)
+
     logging.debug('Make influxdb query %s' % query)
 
     client = _get_influxdb_client()
-    resp = client.query(query, chunked=True)
+    resp = client.query(query)
     metrics = []
 
-    for point in resp[0]['points']:
-        series = point[1]
+    for point in resp.get_points():
+        series = point['name']
         metrics.append(dict(is_leaf=1, name=series, path=series))
 
     return dict(metrics=metrics)
@@ -140,7 +162,7 @@ def get_all_metrics(limit=None):
     metrics = []
 
     def get_leafs_of_node(nodepath):
-        for obj in get_matching_metrics(nodepath, limit)['metrics']:
+        for obj in get_matching_metrics(nodepath, limit=limit)['metrics']:
             if int(obj['is_leaf']) == 1:
                 metrics.append(obj['path'])
             else:
