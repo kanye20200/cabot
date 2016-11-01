@@ -17,3 +17,7 @@ celerybeat-schedule
 conf/*.env
 dist/
 local_config.yml
+.venv/*
+build/*
+cabot.sh
+static/*
