@@ -67,6 +67,8 @@ def get_data(pattern, selector='value',
     * fill_empty - can be Null, or an integer value
     '''
 
+    field = selector.split('(')[0]
+
     if fill_empty is not None:
         fill_str = 'fill(%d)' % fill_empty
     else:
@@ -127,7 +129,7 @@ def get_data(pattern, selector='value',
         name = _get_series_name(name, tags, tag_order)
 
         for entry in series:
-            data[name].append((entry['value'], entry['time']))
+            data[name].append((entry[field], entry['time']))
 
     return [dict(target=key, datapoints=value)
             for key, value in data.iteritems()]
