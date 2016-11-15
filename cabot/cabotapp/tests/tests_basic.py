@@ -186,6 +186,7 @@ class TestCheckRun(LocalTestCase):
 
     @patch('cabot.cabotapp.graphite.requests.get', fake_graphite_response)
     def test_graphite_run(self):
+        pass
         checkresults = self.graphite_check.statuscheckresult_set.all()
         self.assertEqual(len(checkresults), 2)
         self.graphite_check.run()
