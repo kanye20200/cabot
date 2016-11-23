@@ -28,14 +28,16 @@ except ImportError:
     CONNECTION = None
 
 
-try:
-    import boto.utils
-    _instance = boto.utils.get_instance_metadata(num_retries=2)
-    DIMENSIONS = {
-        'instance-id': _instance['instance-id'],
-    }
-except:
-    DIMENSIONS = {}
+if CONNECTION:
+    try:
+        import boto.utils
+        _instance = boto.utils.get_instance_metadata(num_retries=2)
+        DIMENSIONS = {
+            'instance-id': _instance['instance-id'],
+        }
+        DIMENSIONS = {}
+    except:
+        DIMENSIONS = {}
 
 
 def _notify_cloudwatch(task_name, state):

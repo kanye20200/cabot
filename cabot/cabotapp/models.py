@@ -622,6 +622,9 @@ class ICMPStatusCheck(StatusCheck):
 
 
 class GraphiteStatusCheck(StatusCheck):
+    """
+    Uses influx, not graphite
+    """
 
     class Meta(StatusCheck.Meta):
         proxy = True
@@ -668,10 +671,10 @@ class GraphiteStatusCheck(StatusCheck):
                               where_clause=self.where_clause,
                               time_delta=self.interval * 6)
 
+
         result = StatusCheckResult(
             check=self,
         )
-
         if series['error']:
             result.succeeded = False
             result.error = 'Error fetching metric from source'
@@ -740,7 +743,6 @@ class GraphiteStatusCheck(StatusCheck):
                         logger.debug('Point %s is older than ref ts %d' % \
                             (str(point), reference_point))
                         continue
-
                     if last_value is not None:
                         if self.check_type == '<':
                             metric_failed = not last_value < float(self.value)
@@ -761,7 +763,7 @@ class GraphiteStatusCheck(StatusCheck):
                         else:
                             matched_metrics += 1
                             logger.info("Metrics matched: " + str(matched_metrics))
-                            logger.info("Required metrics: " + str (self.expected_num_metrics))
+                            logger.info("Required metrics: " + str(self.expected_num_metrics))
                     else:
                         failed = True
 
@@ -904,7 +906,6 @@ class JenkinsStatusCheck(StatusCheck):
                 # Will fall through to next block
                 raise Exception(u'returned %s' % status['status_code'])
         except Exception as e:
-            logger.exception(e)
             # If something else goes wrong, we will *not* fail - otherwise
             # a lot of services seem to fail all at once.
             # Ugly to do it here but...
