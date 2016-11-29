@@ -2,12 +2,11 @@
 import os
 from setuptools import setup, find_packages
 from os import environ as env
+import pkg_resources
 
 requirements_file = os.path.join(os.path.dirname(__file__), 'requirements.txt')
 with open(requirements_file) as f:
-    requirements = [line.rstrip('\n')
-                    for line in f
-                    if line and not line.startswith('#')]
+    requirements = pkg_resources.parse_requirements(f)
 
 # pull in active plugins
 plugins = env['CABOT_PLUGINS_ENABLED'].split(',') if 'CABOT_PLUGINS_ENABLED' in env else ["cabot_alert_hipchat", "cabot_alert_twilio", "cabot_alert_email"]

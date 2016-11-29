@@ -671,10 +671,10 @@ class GraphiteStatusCheck(StatusCheck):
                               where_clause=self.where_clause,
                               time_delta=self.interval * 6)
 
-
         result = StatusCheckResult(
             check=self,
         )
+
         if series['error']:
             result.succeeded = False
             result.error = 'Error fetching metric from source'
@@ -743,6 +743,7 @@ class GraphiteStatusCheck(StatusCheck):
                         logger.debug('Point %s is older than ref ts %d' % \
                             (str(point), reference_point))
                         continue
+                        
                     if last_value is not None:
                         if self.check_type == '<':
                             metric_failed = not last_value < float(self.value)

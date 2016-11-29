@@ -1,6 +1,9 @@
 #!/bin/bash
 
 set -e
+set -o errexit
+set -o pipefail
+set -o nounset
 
 # first check if we're passing flags, if so
 # prepend with sentry
