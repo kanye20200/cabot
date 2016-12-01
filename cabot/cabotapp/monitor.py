@@ -35,7 +35,6 @@ if CONNECTION:
         DIMENSIONS = {
             'instance-id': _instance['instance-id'],
         }
-        DIMENSIONS = {}
     except:
         DIMENSIONS = {}
 
