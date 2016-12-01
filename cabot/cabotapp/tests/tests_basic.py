@@ -122,11 +122,19 @@ def fake_graphite_response(*args, **kwargs):
     return resp
 
 
+def fake_jenkins_success(*args, **kwargs):
+    resp = Mock()
+    resp.raise_for_status.return_value = resp
+    resp.json = lambda: json.loads(get_content('jenkins_success.json'))
+    resp.status_code = 200
+    return resp
+
+
 def fake_jenkins_response(*args, **kwargs):
     resp = Mock()
     resp.raise_for_status.return_value = resp
-    resp.json.return_value = json.loads(get_content('jenkins_response.json'))
-    resp.status_code = 200
+    resp.json = lambda: json.loads(get_content('jenkins_response.json'))
+    resp.status_code = 400
     return resp
 
 
@@ -217,6 +225,15 @@ class TestCheckRun(LocalTestCase):
         self.assertEqual(len(checkresults), 4)
         self.assertEqual(self.graphite_check.calculated_status,
                          Service.CALCULATED_PASSING_STATUS)
+
+    @patch('cabot.cabotapp.jenkins.requests.get', fake_jenkins_success)
+    def test_jenkins_success(self):
+        checkresults = self.jenkins_check.statuscheckresult_set.all()
+        self.assertEqual(len(checkresults), 0)
+        self.jenkins_check.run()
+        checkresults = self.jenkins_check.statuscheckresult_set.all()
+        self.assertEqual(len(checkresults), 1)
+        self.assertTrue(self.jenkins_check.last_result().succeeded)
 
     @patch('cabot.cabotapp.jenkins.requests.get', fake_jenkins_response)
     def test_jenkins_run(self):

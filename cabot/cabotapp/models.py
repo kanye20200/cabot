@@ -743,7 +743,7 @@ class GraphiteStatusCheck(StatusCheck):
                         logger.debug('Point %s is older than ref ts %d' % \
                             (str(point), reference_point))
                         continue
-                        
+ 
                     if last_value is not None:
                         if self.check_type == '<':
                             metric_failed = not last_value < float(self.value)
@@ -937,6 +937,7 @@ class JenkinsStatusCheck(StatusCheck):
                 else:
                     result.error = u'Job "%s" failing on Jenkins' % self.name
                 result.raw_data = status
+
         return result
 
 
