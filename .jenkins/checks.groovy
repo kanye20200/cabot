@@ -27,7 +27,7 @@ Closure jobTemplate(job, desc, target) {
     """.stripMargin())
 
     parameters {
-      stringParam('GIT_BRANCH', 'jenkins', '<p><em>e.g.</em> <code>jenkins</code></p>')
+      stringParam('GIT_BRANCH', 'master', '<p><em>e.g.</em> <code>master</code></p>')
       stringParam('GIT_COMMIT', 'develop', '<p>git commit-ish, usually provided by maestro</p>')
     }
 
@@ -74,6 +74,18 @@ Closure jobTemplate(job, desc, target) {
 }
 
 // generate project for docker-compose tests
+// TODO: remove test
 freeStyleJob('test.cabot.docker-compose') { job ->
   jobTemplate(job, "Runs tests against Affirm/cabot.git using docker-compose", 'docker-compose').call()
+}
+
+// generate projects for flake8 tests
+// TODO: remove test
+freeStyleJob('test.cabot.flake8') { job ->
+  jobTemplate(job, "Runs tests against Affirm/cabot.git using flake8", 'flake8').call()
+  publishers {
+    violations {
+      pep8(0, 0, 0, 'build/flake8.txt')
+    }
+  }
 }
