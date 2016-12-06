@@ -311,3 +311,7 @@ CELERYD_HIJACK_ROOT_LOGGER = False
 # xml output for tests
 TEST_RUNNER = 'xmlrunner.extra.djangotestrunner.XMLTestRunner'
 TEST_OUTPUT_DIR = './build/docker-compose'
+
+# default calendar url
+# TODO: remove
+CALENDAR_ICAL_URL = 'https://affirm.pagerduty.com/schedules#PW4LM7V'

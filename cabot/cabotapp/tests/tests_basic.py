@@ -21,8 +21,8 @@ from mock import Mock, patch
 
 from cabot.cabotapp.models import (
     GraphiteStatusCheck, JenkinsStatusCheck,
-    HttpStatusCheck, ICMPStatusCheck, Service, Instance,
-    StatusCheckResult, UserProfile)
+    HttpStatusCheck, ICMPStatusCheck, Service, Schedule,
+    Instance, StatusCheckResult, UserProfile)
 from cabot.cabotapp.views import StatusCheckReportForm
 from cabot.cabotapp.alert import send_alert
 
@@ -79,6 +79,10 @@ class LocalTestCase(APITestCase):
             timeout=10,
             status_code='200',
             text_match=None,
+        )
+        self.schedule = Schedule.objects.create(
+            name='Main',
+            feed_url='fakefeedurl.net',
         )
         self.service = Service.objects.create(
             name='Service',

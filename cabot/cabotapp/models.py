@@ -6,12 +6,12 @@ from celery.exceptions import SoftTimeLimitExceeded
 
 from .jenkins import get_job_status
 from .alert import (send_alert, AlertPluginUserData)
-from .calendar import Schedule, get_events
 from .influx import parse_metric
 from .tasks import update_service, update_instance
 from collections import defaultdict
 from datetime import timedelta
 from django.utils import timezone
+from icalendar import Calendar
 
 import json
 import re
@@ -66,6 +66,19 @@ def calculate_debounced_passing(recent_results, debounce=0):
     return False
 
 
+class Schedule(models.Model):
+    name = models.TextField(default='Main')
+    feed_url = models.TextField(default=settings.CALENDAR_ICAL_URL)
+
+    def get_calendar_data(self):
+        # TODO: what to do about pagerduty login
+        resp = requests.get(self.feed_url)
+        return Calendar.from_ical(resp.content)
+
+    def __unicode__(self):
+        return self.name
+
+
 class CheckGroupMixin(models.Model):
 
     class Meta:
@@ -118,7 +131,7 @@ class CheckGroupMixin(models.Model):
         blank=True,
         help_text='Alerts channels through which you wish to be notified'
     )
-    schedule = models.ForeignKey(Schedule)
+    schedule = models.ForeignKey(Schedule, default=Schedule.objects.create())
 
     email_alert = models.BooleanField(default=False)
     hipchat_alert = models.BooleanField(default=True)
@@ -730,7 +743,6 @@ class GraphiteStatusCheck(StatusCheck):
             logger.info("Processing series " + str(json_series))
             for line in json_series:
                 matched_metrics = 0
-                metric_failed = True
 
                 for point in line['datapoints']:
 
@@ -1015,13 +1027,28 @@ class UserProfile(models.Model):
     hipchat_alias = models.CharField(max_length=50, blank=True, default='')
     fallback_alert_user = models.BooleanField(default=False)
 
+
+def get_events(schedule):
+    events = []
+    for component in schedule.get_calendar_data().walk():
+        if component.name == 'VEVENT':
+            events.append({
+                'start': component.decoded('dtstart'),
+                'end': component.decoded('dtend'),
+                'summary': component.decoded('summary'),
+                'uid': component.decoded('uid'),
+                'attendee': component.decoded('attendee'),
+            })
+    return events
+
+
 class Shift(models.Model):
     start = models.DateTimeField()
     end = models.DateTimeField()
     user = models.ForeignKey(User)
     uid = models.TextField()
     deleted = models.BooleanField(default=False)
-    schedule = models.ForeignKey(Schedule)
+    schedule = models.ForeignKey(Schedule, default=Schedule.objects.create())
 
     def __unicode__(self):
         deleted = ''
@@ -1060,7 +1087,7 @@ def get_all_duty_officers(at_time=None):
     for schedule in schedules:
         for user in get_duty_officers(schedule, at_time):
             # TODO: unconvinced that user can be a key
-            out[user].append(schedule.name)
+            out[user].append(schedule)
 
     return out
 
