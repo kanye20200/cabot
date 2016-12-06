@@ -1,18 +1,21 @@
 from django.conf import settings
+from django.db import models
 from icalendar import Calendar
 import requests
 
 
-def get_calendar_data():
-    feed_url = settings.CALENDAR_ICAL_URL
-    resp = requests.get(feed_url)
-    cal = Calendar.from_ical(resp.content)
-    return cal
+class Schedule(models.Model):
+    name = models.TextField(default='Main')
+    feed_url = models.TextField(default=settings.CALENDAR_ICAL_URL)
+
+    def get_calendar_data(self):
+        resp = requests.get(self.feed_url)
+        return Calendar.from_ical(resp.content)
 
 
-def get_events():
+def get_events(schedule):
     events = []
-    for component in get_calendar_data().walk():
+    for component in schedule.get_calendar_data().walk():
         if component.name == 'VEVENT':
             events.append({
                 'start': component.decoded('dtstart'),

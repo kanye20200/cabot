@@ -15,7 +15,7 @@ from models import (StatusCheck,
                     Service,
                     Instance,
                     Shift,
-                    get_duty_officers)
+                    get_all_duty_officers)
 
 from tasks import run_status_check as _run_status_check
 from django.contrib.auth.decorators import login_required
@@ -32,14 +32,11 @@ from django.core.exceptions import ValidationError
 
 from cabot.cabotapp import alert
 from models import AlertPluginUserData
-from django.forms.models import (inlineformset_factory, modelformset_factory)
-from django import shortcuts
 from django.contrib import messages
 from social.exceptions import AuthFailed
 from social.apps.django_app.views import complete
 
 from itertools import groupby, dropwhile, izip_longest
-import requests
 import json
 import re
 
@@ -60,7 +57,7 @@ def subscriptions(request):
     c = RequestContext(request, {
         'services': services,
         'users': users,
-        'duty_officers': get_duty_officers(),
+        'duty_officers': get_all_duty_officers(),
     })
     return HttpResponse(t.render(c))
 

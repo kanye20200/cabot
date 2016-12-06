@@ -18,9 +18,11 @@
           {% for user in users %}
           <th>
             {% if user.first_name %}{{ user.first_name }}{% elif user.email %}{{ user.email }}{% else %}{{ user.username }}{% endif %}
-            {% if user in duty_officers %}
+            {% if user in duty_officers.keys() %}
             <span class="label label-success">
-              On duty
+              {% for schedule_name in duty_officers[user] %}
+                On duty - {{ schedule_name }}
+              {% endfor %}
             </span>
             {% else %}
             {% if user.profile.fallback_alert_user %}

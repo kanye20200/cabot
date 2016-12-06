@@ -1,24 +1,21 @@
 from django.db import models
 from django.conf import settings
-from django.core.exceptions import ValidationError
 from polymorphic import PolymorphicModel
-from django.db.models import F
-from django.core.urlresolvers import reverse
 from django.contrib.auth.models import User
 from celery.exceptions import SoftTimeLimitExceeded
 
 from .jenkins import get_job_status
-from .alert import (send_alert, AlertPlugin, AlertPluginUserData, update_alert_plugins)
-from .calendar import get_events
+from .alert import (send_alert, AlertPluginUserData)
+from .calendar import Schedule, get_events
 from .influx import parse_metric
 from .tasks import update_service, update_instance
-from datetime import datetime, timedelta
+from collections import defaultdict
+from datetime import timedelta
 from django.utils import timezone
 
 import json
 import re
 import time
-import os
 import subprocess
 import yaml
 
@@ -121,6 +118,7 @@ class CheckGroupMixin(models.Model):
         blank=True,
         help_text='Alerts channels through which you wish to be notified'
     )
+    schedule = models.ForeignKey(Schedule)
 
     email_alert = models.BooleanField(default=False)
     hipchat_alert = models.BooleanField(default=True)
@@ -181,7 +179,7 @@ class CheckGroupMixin(models.Model):
         self.save()
         self.snapshot.did_send_alert = True
         self.snapshot.save()
-        send_alert(self, duty_officers=get_duty_officers())
+        send_alert(self, duty_officers=get_duty_officers(self.schedule))
 
     @property
     def recent_snapshots(self):
@@ -1023,6 +1021,7 @@ class Shift(models.Model):
     user = models.ForeignKey(User)
     uid = models.TextField()
     deleted = models.BooleanField(default=False)
+    schedule = models.ForeignKey(Schedule)
 
     def __unicode__(self):
         deleted = ''
@@ -1031,15 +1030,16 @@ class Shift(models.Model):
         return "%s: %s to %s%s" % (self.user.username, self.start, self.end, deleted)
 
 
-def get_duty_officers(at_time=None):
-    """Returns a list of duty officers for a given time or now if none given"""
-    duty_officers = []
+def get_duty_officers(schedule, at_time=None):
+    """Returns a list of duty officers for a given schedule and a
+       given time or now if none given"""
     if not at_time:
         at_time = timezone.now()
     current_shifts = Shift.objects.filter(
         deleted=False,
         start__lt=at_time,
         end__gt=at_time,
+        schedule=schedule,
     )
     if current_shifts:
         duty_officers = [shift.user for shift in current_shifts]
@@ -1052,8 +1052,21 @@ def get_duty_officers(at_time=None):
             return []
 
 
-def update_shifts():
-    events = get_events()
+def get_all_duty_officers(at_time=None):
+    """Returns a dict of duty_officer:schedule(s)"""
+    out = defaultdict(list)
+
+    schedules = Schedule.objects.all()
+    for schedule in schedules:
+        for user in get_duty_officers(schedule, at_time):
+            # TODO: unconvinced that user can be a key
+            out[user].append(schedule.name)
+
+    return out
+
+
+def update_shifts(schedule):
+    events = get_events(schedule)
     users = User.objects.filter(is_active=True)
     user_lookup = {}
     for u in users:
