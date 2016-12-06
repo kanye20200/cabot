@@ -6,11 +6,12 @@ from celery.exceptions import SoftTimeLimitExceeded
 
 from .jenkins import get_job_status
 from .alert import (send_alert, AlertPluginUserData)
-from .calendar import get_events
 from .influx import parse_metric
 from .tasks import update_service, update_instance
-from datetime import datetime, timedelta
+from collections import defaultdict
+from datetime import timedelta
 from django.utils import timezone
+from icalendar import Calendar
 
 import json
 import re
@@ -63,6 +64,18 @@ def calculate_debounced_passing(recent_results, debounce=0):
         if r.succeeded:
             return True
     return False
+
+
+class Schedule(models.Model):
+    name = models.TextField(default='Main', unique=True)
+    ical_url = models.TextField(default=settings.CALENDAR_ICAL_URL)
+
+    def get_calendar_data(self):
+        resp = requests.get(self.ical_url)
+        return Calendar.from_ical(resp.content)
+
+    def __unicode__(self):
+        return self.name
 
 
 class CheckGroupMixin(models.Model):
@@ -177,7 +190,7 @@ class CheckGroupMixin(models.Model):
         self.save()
         self.snapshot.did_send_alert = True
         self.snapshot.save()
-        send_alert(self, duty_officers=get_duty_officers())
+        send_alert(self, duty_officers=get_duty_officers(self.schedule))
 
     @property
     def recent_snapshots(self):
@@ -248,6 +261,7 @@ class Service(CheckGroupMixin):
         blank=True,
         help_text="URL of service."
     )
+    schedule = models.ForeignKey('Schedule', default=1)
 
     class Meta:
         ordering = ['name']
@@ -728,7 +742,6 @@ class GraphiteStatusCheck(StatusCheck):
             logger.info("Processing series " + str(json_series))
             for line in json_series:
                 matched_metrics = 0
-                metric_failed = True
 
                 for point in line['datapoints']:
 
@@ -1013,12 +1026,28 @@ class UserProfile(models.Model):
     hipchat_alias = models.CharField(max_length=50, blank=True, default='')
     fallback_alert_user = models.BooleanField(default=False)
 
+
+def get_events(schedule):
+    events = []
+    for component in schedule.get_calendar_data().walk():
+        if component.name == 'VEVENT':
+            events.append({
+                'start': component.decoded('dtstart'),
+                'end': component.decoded('dtend'),
+                'summary': component.decoded('summary'),
+                'uid': component.decoded('uid'),
+                'attendee': component.decoded('attendee'),
+            })
+    return events
+
+
 class Shift(models.Model):
     start = models.DateTimeField()
     end = models.DateTimeField()
     user = models.ForeignKey(User)
     uid = models.TextField()
     deleted = models.BooleanField(default=False)
+    schedule = models.ForeignKey('Schedule', default=1)
 
     def __unicode__(self):
         deleted = ''
@@ -1027,15 +1056,16 @@ class Shift(models.Model):
         return "%s: %s to %s%s" % (self.user.username, self.start, self.end, deleted)
 
 
-def get_duty_officers(at_time=None):
-    """Returns a list of duty officers for a given time or now if none given"""
-    duty_officers = []
+def get_duty_officers(schedule, at_time=None):
+    """Returns a list of duty officers for a given schedule and a
+       given time or now if none given"""
     if not at_time:
         at_time = timezone.now()
     current_shifts = Shift.objects.filter(
         deleted=False,
         start__lt=at_time,
         end__gt=at_time,
+        schedule=schedule,
     )
     if current_shifts:
         duty_officers = [shift.user for shift in current_shifts]
@@ -1048,13 +1078,27 @@ def get_duty_officers(at_time=None):
             return []
 
 
-def update_shifts():
-    events = get_events()
+def get_all_duty_officers(at_time=None):
+    """Returns a dict of duty_officer:schedule(s)"""
+    out = defaultdict(list)
+
+    schedules = Schedule.objects.all()
+    for schedule in schedules:
+        for user in get_duty_officers(schedule, at_time):
+            # TODO: unconvinced that user can be a key
+            out[user].append(schedule)
+
+    return out
+
+
+def update_shifts(schedule):
+    events = get_events(schedule)
     users = User.objects.filter(is_active=True)
     user_lookup = {}
     for u in users:
         user_lookup[u.username.lower()] = u
-    future_shifts = Shift.objects.filter(start__gt=timezone.now())
+    future_shifts = Shift.objects.filter(start__gt=timezone.now(),
+                                         schedule=schedule)
     future_shifts.update(deleted=True)
 
     for event in events:
@@ -1071,11 +1115,14 @@ def update_shifts():
         if e is not None:
             user = user_lookup[e]
             try:
-                s = Shift.objects.get(uid=event['uid'])
+                s = Shift.objects.get(uid=event['uid'],
+                                      schedule=schedule)
             except Shift.DoesNotExist:
-                s = Shift(uid=event['uid'])
+                s = Shift(uid=event['uid'],
+                          schedule=schedule)
             s.start = event['start']
             s.end = event['end']
             s.user = user
             s.deleted = False
+            s.schedule=schedule
             s.save()

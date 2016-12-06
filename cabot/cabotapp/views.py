@@ -15,7 +15,9 @@ from models import (StatusCheck,
                     Service,
                     Instance,
                     Shift,
-                    get_duty_officers)
+                    Schedule,
+                    get_all_duty_officers,
+                    update_shifts)
 
 from tasks import run_status_check as _run_status_check
 from django.contrib.auth.decorators import login_required
@@ -32,14 +34,12 @@ from django.core.exceptions import ValidationError
 
 from cabot.cabotapp import alert
 from models import AlertPluginUserData
-from django.forms.models import (inlineformset_factory, modelformset_factory)
-from django import shortcuts
 from django.contrib import messages
+from django.template.defaulttags import register
 from social.exceptions import AuthFailed
 from social.apps.django_app.views import complete
 
 from itertools import groupby, dropwhile, izip_longest
-import requests
 import json
 import re
 
@@ -60,7 +60,7 @@ def subscriptions(request):
     c = RequestContext(request, {
         'services': services,
         'users': users,
-        'duty_officers': get_duty_officers(),
+        'duty_officers': get_all_duty_officers(),
     })
     return HttpResponse(t.render(c))
 
@@ -372,6 +372,7 @@ class ServiceForm(forms.ModelForm):
             'name',
             'url',
             'users_to_notify',
+            'schedule',
             'status_checks',
             'instances',
             'alerts',
@@ -394,6 +395,7 @@ class ServiceForm(forms.ModelForm):
                 'style': 'width: 70%',
             }),
             'users_to_notify': forms.CheckboxSelectMultiple(),
+            'schedule': forms.Select(),
             'hackpad_id': forms.TextInput(attrs={'style': 'width:30%;'}),
         }
 
@@ -401,6 +403,7 @@ class ServiceForm(forms.ModelForm):
         ret = super(ServiceForm, self).__init__(*args, **kwargs)
         self.fields['users_to_notify'].queryset = User.objects.filter(
             is_active=True)
+        self.fields['schedule'].queryset = Schedule.objects.all()
         return ret
 
     def clean_hackpad_id(self):
@@ -411,6 +414,25 @@ class ServiceForm(forms.ModelForm):
             if re.match(pattern, value):
                 return value
         raise ValidationError('Please specify a valid JS snippet link')
+
+
+class ScheduleForm(forms.ModelForm):
+
+    class Meta:
+        model = Schedule
+        template_name = 'schedule_form.html'
+        fields = (
+            'name',
+            'ical_url',
+        )
+        widgets = {
+            'name': forms.TextInput(attrs={'style': 'width: 30%;'}),
+            'ical_url': forms.TextInput(attrs={'style': 'width: 30%;'}),
+        }
+        # what do for invalid ical url
+
+    def __init__(self, *args, **kwargs):
+        return super(ScheduleForm, self).__init__(*args, **kwargs)
 
 
 class StatusCheckReportForm(forms.Form):
@@ -702,6 +724,46 @@ class ServiceDetailView(LoginRequiredMixin, DetailView):
         return context
 
 
+class ScheduleDetailView(LoginRequiredMixin, DetailView):
+    model = Schedule
+    context_object_name = 'schedule'
+
+    def get_context_data(self, **kwargs):
+        context = super(ScheduleDetailView, self).get_context_data(**kwargs)
+        update_shifts(self.object)
+        try:
+            calendar_data = self.object.get_calendar_data()
+            context['schedule'] = {
+                'calendar_data': calendar_data,
+                'name':  self.object.name,
+            }
+        except Exception as e:
+            context['schedule'] = {
+                'error': e,
+            }
+        return context
+
+class ScheduleListView(LoginRequiredMixin, ListView):
+    model = Schedule
+    context_object_name = 'schedules'
+
+    def get_queryset(self):
+        return Schedule.objects.all().order_by('id')
+
+class ScheduleUpdateView(LoginRequiredMixin, UpdateView):
+    model = Schedule
+    context_object_name = 'schedules'
+
+    def get_success_url(self):
+        return reverse('schedule', kwargs={'pk': self.object.id})
+
+class ScheduleDeleteView(LoginRequiredMixin, DeleteView):
+    model = Schedule
+    success_url = reverse_lazy('shifts')
+    context_object_name = 'schedule'
+    template_name = 'cabotapp/schedule_confirm_delete.html'
+
+
 class InstanceCreateView(LoginRequiredMixin, CreateView):
     model = Instance
     form_class = InstanceForm
@@ -750,6 +812,16 @@ class ServiceCreateView(LoginRequiredMixin, CreateView):
     def get_success_url(self):
         return reverse('service', kwargs={'pk': self.object.id})
 
+class ScheduleCreateView(LoginRequiredMixin, CreateView):
+    model = Schedule
+    form_class = ScheduleForm
+
+    for schedule in Schedule.objects.all():
+        update_shifts(schedule)
+
+    def get_success_url(self):
+        return reverse('schedule', kwargs={'pk': self.object.id})
+
 class InstanceUpdateView(LoginRequiredMixin, UpdateView):
     model = Instance
     form_class = InstanceForm
@@ -784,10 +856,19 @@ class ShiftListView(LoginRequiredMixin, ListView):
     context_object_name = 'shifts'
 
     def get_queryset(self):
+        # id selected in schedule_selection
+        schedule = Schedule.objects.get(id=self.kwargs['pk'])
+        update_shifts(schedule)
         return Shift.objects.filter(
             end__gt=datetime.utcnow().replace(tzinfo=utc),
-            deleted=False).order_by('start')
+            deleted=False,
+            schedule=schedule).order_by('start')
 
+    def get_context_data(self, **kwargs):
+        context = super(ShiftListView, self).get_context_data(**kwargs)
+
+        context['schedule_name'] = Schedule.objects.get(id=self.kwargs['pk']).name
+        return context
 
 class StatusCheckReportView(LoginRequiredMixin, TemplateView):
     template_name = 'cabotapp/statuscheck_report.html'
@@ -856,3 +937,7 @@ class AuthComplete(View):
 class LoginError(View):
     def get(self, request, *args, **kwargs):
         return HttpResponse(status=401)
+
+@register.filter
+def get_item(dictionary, key):
+    return dictionary.get(key)

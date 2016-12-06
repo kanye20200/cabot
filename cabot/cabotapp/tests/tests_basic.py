@@ -3,8 +3,8 @@
 import requests
 from django.conf import settings
 from django.utils import timezone
+from django.core import mail
 from django.core.urlresolvers import reverse
-from django.test import TestCase
 from django.contrib.auth.models import User
 from django.test.client import Client
 from django.contrib.auth.models import Permission
@@ -12,7 +12,6 @@ from rest_framework import status, HTTP_HEADER_ENCODING
 from rest_framework.test import APITestCase
 from rest_framework.reverse import reverse as api_reverse
 from twilio import rest
-from django.core import mail
 from datetime import timedelta, date, datetime
 import json
 import os
@@ -20,12 +19,10 @@ import base64
 from mock import Mock, patch
 
 from cabot.cabotapp.models import (
-    GraphiteStatusCheck, JenkinsStatusCheck,
-    HttpStatusCheck, ICMPStatusCheck, Service, Instance,
-    StatusCheckResult, UserProfile)
+    get_duty_officers, get_all_duty_officers, update_shifts, GraphiteStatusCheck,
+    JenkinsStatusCheck, HttpStatusCheck, ICMPStatusCheck,
+    Service, Schedule, Instance, StatusCheckResult, UserProfile)
 from cabot.cabotapp.views import StatusCheckReportForm
-from cabot.cabotapp.alert import send_alert
-
 
 def get_content(fname):
     path = os.path.join(os.path.dirname(__file__), 'fixtures/%s' % fname)
@@ -80,8 +77,20 @@ class LocalTestCase(APITestCase):
             status_code='200',
             text_match=None,
         )
+        # Set ical_url for schedule to filename we're using for mock response
+        self.schedule = Schedule.objects.create(
+            name='Principal',
+            ical_url='calendar_response.ics',
+        )
+        self.secondary_schedule = Schedule.objects.create(
+            name='Secondary',
+            ical_url='calendar_response_different.ics',
+        )
+        self.schedule.save()
+        self.secondary_schedule.save()
         self.service = Service.objects.create(
             name='Service',
+            schedule=self.schedule,
         )
 
         self.service.status_checks.add(
@@ -156,6 +165,13 @@ def fake_http_404_response(*args, **kwargs):
     resp = Mock()
     resp.content = get_content('http_response.html')
     resp.status_code = 404
+    return resp
+
+
+def fake_calendar(*args, **kwargs):
+    resp = Mock()
+    resp.content = get_content(args)
+    resp.status_code = 200
     return resp
 
 
@@ -343,13 +359,12 @@ class TestWebInterface(LocalTestCase):
 
     def test_set_recovery_instructions(self):
         # Get service page - will get 200 from login page
-        resp = self.client.get(reverse('update-service', kwargs={'pk':self.service.id}), follow=True)
+        resp = self.client.get(reverse('update-service', kwargs={'pk': self.service.id}), follow=True)
         self.assertEqual(resp.status_code, 200)
-        #self.assertIn('username', resp.content)
 
         # Log in
         self.client.login(username=self.username, password=self.password)
-        resp = self.client.get(reverse('update-service', kwargs={'pk':self.service.id}))
+        resp = self.client.get(reverse('update-service', kwargs={'pk': self.service.id}))
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn('username', resp.content)
 
@@ -360,11 +375,14 @@ class TestWebInterface(LocalTestCase):
             data={
                 'name': self.service.name,
                 'hackpad_id': snippet_link,
+                'schedule': self.schedule.id,
             },
             follow=True,
         )
         self.assertEqual(resp.status_code, 200)
         reloaded = Service.objects.get(id=self.service.id)
+        #self.assertEqual(resp.content, 'elaine')
+        #self.assertEqual(reloaded, 'elaine')
         self.assertEqual(reloaded.hackpad_id, snippet_link)
         # Now one on the blacklist
         blacklist_link = 'https://unapproved_link.domain.com/wiki-7YaNlsC11bB.js'
@@ -794,3 +812,83 @@ class TestAlerts(LocalTestCase):
         self.service.alert()
         self.assertEqual(fake_send_alert.call_count, 1)
         fake_send_alert.assert_called_with(self.service, duty_officers=[])
+
+
+class TestSchedules(LocalTestCase):
+    def setUp(self):
+        super(TestSchedules, self).setUp()
+        self.create_fake_users(['dolores@affirm.com', 'bernard@affirm.com', 'teddy@affirm.com',
+                                'maeve@affirm.com', 'hector@affirm.com', 'armistice@affirm.com'])
+
+    def create_fake_users(self, usernames):
+        """Create fake Users with the listed usernames"""
+        for user in usernames:
+            User.objects.create(
+                username=user,
+                password='fakepassword',
+                is_active=True,
+            )
+
+    def test_schedule_in_service(self):
+        """Test that the schedule in self.service is the one we expect"""
+        self.assertEqual(self.service.schedule.name, 'Principal')
+        self.assertEqual(self.service.schedule.ical_url, 'calendar_response.ics')
+
+    @patch('cabot.cabotapp.models.requests.get', fake_calendar)
+    def test_single_schedule(self):
+        """Make sure the correct person is marked as a duty officer
+           if there's a single calendar"""
+        # initial user plus new 6
+        self.assertEqual(len(User.objects.all()), 7)
+
+        update_shifts(self.schedule)
+
+        officers = get_duty_officers(self.schedule, at_time=datetime(2016, 11, 6, 0, 0, 0))
+        usernames = [str(user.username) for user in officers]
+        self.assertEqual(usernames, ['dolores@affirm.com'])
+
+        officers = get_duty_officers(self.schedule, at_time=datetime(2016, 11, 8, 0, 0, 0))
+        usernames = [str(user.username) for user in officers]
+        self.assertEqual(usernames, ['teddy@affirm.com'])
+
+        officers = get_duty_officers(self.schedule, at_time=datetime(2016, 11, 8, 10, 0, 0))
+        usernames = [str(user.username) for user in officers]
+        self.assertEqual(usernames, ['teddy@affirm.com'])
+
+
+    @patch('cabot.cabotapp.models.requests.get', fake_calendar)
+    def test_multiple_schedules(self):
+        """Add a second calendar and make sure the correct duty officers are marked
+           for each calendar"""
+        self.assertEqual(len(User.objects.all()), 7)
+
+        update_shifts(self.secondary_schedule)
+        update_shifts(self.schedule)
+
+        officers = get_duty_officers(self.secondary_schedule, at_time=datetime(2016, 11, 6, 0, 0, 0))
+        usernames = [str(user.username) for user in officers]
+        self.assertEqual(usernames, ['maeve@affirm.com'])
+
+        old_officers = get_duty_officers(self.schedule, at_time=datetime(2016, 11, 6, 0, 0, 0))
+        old_usernames = [user.username for user in old_officers]
+        self.assertEqual(old_usernames, ['dolores@affirm.com'])
+
+    @patch('cabot.cabotapp.models.requests.get', fake_calendar)
+    def test_get_all_duty_officers(self):
+        """Make sure get_all_duty_officers works with multiple calendars"""
+        self.assertEqual(len(User.objects.all()), 7)
+
+        update_shifts(self.schedule)
+        update_shifts(self.secondary_schedule)
+
+        officers_dict = get_all_duty_officers(at_time=datetime(2016, 11, 6, 0, 0, 0))
+        officers = []
+        for item in officers_dict.iteritems():
+            officers.append(item)
+
+        self.assertEqual(len(officers), 2)
+
+        self.assertEqual(officers[0][0].username, 'dolores@affirm.com')
+        self.assertEqual(officers[0][1][0].name, 'Principal')
+        self.assertEqual(officers[1][0].username, 'maeve@affirm.com')
+        self.assertEqual(officers[1][1][0].name, 'Secondary')
