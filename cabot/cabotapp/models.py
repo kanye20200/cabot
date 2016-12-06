@@ -131,7 +131,7 @@ class CheckGroupMixin(models.Model):
         blank=True,
         help_text='Alerts channels through which you wish to be notified'
     )
-    schedule = models.ForeignKey(Schedule, default=Schedule.objects.create())
+    schedule = models.ForeignKey(Schedule, default=1)
 
     email_alert = models.BooleanField(default=False)
     hipchat_alert = models.BooleanField(default=True)
@@ -1048,7 +1048,7 @@ class Shift(models.Model):
     user = models.ForeignKey(User)
     uid = models.TextField()
     deleted = models.BooleanField(default=False)
-    schedule = models.ForeignKey(Schedule, default=Schedule.objects.create())
+    schedule = models.ForeignKey(Schedule, default=1)
 
     def __unicode__(self):
         deleted = ''

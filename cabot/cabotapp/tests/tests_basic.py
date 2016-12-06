@@ -86,6 +86,7 @@ class LocalTestCase(APITestCase):
         )
         self.service = Service.objects.create(
             name='Service',
+            schedule=self.schedule,
         )
 
         self.service.status_checks.add(
