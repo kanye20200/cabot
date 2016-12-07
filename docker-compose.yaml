@@ -33,9 +33,6 @@ services:
 
   # wait for everything to start before continuing
   wait:
-    image: jjjj/wait
+    image: aanand/wait
     links:
-      - db
-      - redis
-      - web
-      - worker
+      - db 
