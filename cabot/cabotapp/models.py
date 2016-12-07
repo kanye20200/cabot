@@ -1,14 +1,11 @@
 from django.db import models
 from django.conf import settings
-from django.core.exceptions import ValidationError
 from polymorphic import PolymorphicModel
-from django.db.models import F
-from django.core.urlresolvers import reverse
 from django.contrib.auth.models import User
 from celery.exceptions import SoftTimeLimitExceeded
 
 from .jenkins import get_job_status
-from .alert import (send_alert, AlertPlugin, AlertPluginUserData, update_alert_plugins)
+from .alert import (send_alert, AlertPluginUserData)
 from .calendar import get_events
 from .influx import parse_metric
 from .tasks import update_service, update_instance
@@ -18,7 +15,6 @@ from django.utils import timezone
 import json
 import re
 import time
-import os
 import subprocess
 import yaml
 
@@ -848,7 +844,7 @@ class HttpStatusCheck(StatusCheck):
                 allow_redirects = self.allow_http_redirects
             )
         except requests.RequestException as e:
-            result.error = u'Request error occurred: %s' % (e,)
+            result.error = u'Request error occurred: %s' % (e.message,)
             result.succeeded = False
         else:
             result.raw_data = resp.content
@@ -910,7 +906,7 @@ class JenkinsStatusCheck(StatusCheck):
             # If something else goes wrong, we will *not* fail - otherwise
             # a lot of services seem to fail all at once.
             # Ugly to do it here but...
-            result.error = u'Error fetching from Jenkins - %s' % e
+            result.error = u'Error fetching from Jenkins - %s' % e.message
             result.succeeded = False
             return result
 

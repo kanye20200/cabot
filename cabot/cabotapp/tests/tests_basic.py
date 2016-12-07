@@ -160,7 +160,7 @@ def fake_http_404_response(*args, **kwargs):
 
 
 def throws_timeout(*args, **kwargs):
-    raise requests.RequestException(u'why was this in russian')
+    raise requests.RequestException(u'фиктивная ошибка innit')
 
 
 class TestCheckRun(LocalTestCase):
@@ -261,7 +261,7 @@ class TestCheckRun(LocalTestCase):
         checkresults = self.jenkins_check.statuscheckresult_set.all()
         self.assertEqual(len(checkresults), 1)
         self.assertFalse(self.jenkins_check.last_result().succeeded)
-        self.assertIn(u'Error fetching from Jenkins - why was this in russian',
+        self.assertIn(u'Error fetching from Jenkins - фиктивная ошибка innit',
                       self.jenkins_check.last_result().error)
 
     @patch('cabot.cabotapp.models.requests.get', fake_http_200_response)
@@ -296,7 +296,7 @@ class TestCheckRun(LocalTestCase):
         checkresults = self.http_check.statuscheckresult_set.all()
         self.assertEqual(len(checkresults), 1)
         self.assertFalse(self.http_check.last_result().succeeded)
-        self.assertIn(u'Request error occurred: why was this in russian',
+        self.assertIn(u'Request error occurred: фиктивная ошибка innit',
                       self.http_check.last_result().error)
 
     @patch('cabot.cabotapp.models.requests.request', fake_http_404_response)

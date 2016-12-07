@@ -30,3 +30,9 @@ services:
 
   db:
     image: postgres
+
+  # wait for everything to start before continuing
+  wait:
+    image: jjjj/wait
+    links:
+      - db
