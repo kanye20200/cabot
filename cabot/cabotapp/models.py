@@ -72,6 +72,7 @@ class Schedule(models.Model):
 
     def get_calendar_data(self):
         # TODO: what to do about pagerduty login
+        # TODO: what about error handling
         resp = requests.get(self.feed_url)
         return Calendar.from_ical(resp.content)
 
@@ -1122,4 +1123,5 @@ def update_shifts(schedule):
             s.end = event['end']
             s.user = user
             s.deleted = False
+            s.schedule=schedule
             s.save()
