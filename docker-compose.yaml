@@ -36,3 +36,6 @@ services:
     image: jjjj/wait
     links:
       - db
+      - redis
+      - web
+      - worker
