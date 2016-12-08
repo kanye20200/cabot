@@ -69,6 +69,7 @@ def calculate_debounced_passing(recent_results, debounce=0):
 class Schedule(models.Model):
     name = models.TextField(default='Main')
     feed_url = models.TextField(default=settings.CALENDAR_ICAL_URL)
+    is_active = models.TextField(default=True)
 
     def get_calendar_data(self):
         # TODO: what to do about pagerduty login
@@ -1084,10 +1085,9 @@ def get_all_duty_officers(at_time=None):
     """Returns a dict of duty_officer:schedule(s)"""
     out = defaultdict(list)
 
-    schedules = Schedule.objects.all()
+    schedules = Schedule.objects.filter(is_active=True)
     for schedule in schedules:
         for user in get_duty_officers(schedule, at_time):
-            # TODO: unconvinced that user can be a key
             out[user].append(schedule)
 
     return out

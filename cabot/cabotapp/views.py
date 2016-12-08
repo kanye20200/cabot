@@ -32,6 +32,7 @@ from django.core.urlresolvers import reverse
 from django.core.exceptions import ValidationError
 
 from cabot.cabotapp import alert
+from icalendar import Calendar
 from models import AlertPluginUserData
 from django.contrib import messages
 from social.exceptions import AuthFailed
@@ -40,6 +41,7 @@ from social.apps.django_app.views import complete
 from itertools import groupby, dropwhile, izip_longest
 import json
 import re
+import requests
 
 
 class LoginRequiredMixin(object):
@@ -370,6 +372,7 @@ class ServiceForm(forms.ModelForm):
             'name',
             'url',
             'users_to_notify',
+            'schedule',
             'status_checks',
             'instances',
             'alerts',
@@ -392,6 +395,7 @@ class ServiceForm(forms.ModelForm):
                 'style': 'width: 70%',
             }),
             'users_to_notify': forms.CheckboxSelectMultiple(),
+            'schedule': forms.ChoiceField(),
             'hackpad_id': forms.TextInput(attrs={'style': 'width:30%;'}),
         }
 
@@ -399,6 +403,7 @@ class ServiceForm(forms.ModelForm):
         ret = super(ServiceForm, self).__init__(*args, **kwargs)
         self.fields['users_to_notify'].queryset = User.objects.filter(
             is_active=True)
+        self.fields('schedule').queryset = Schedule.objects.all()
         return ret
 
     def clean_hackpad_id(self):
@@ -409,6 +414,31 @@ class ServiceForm(forms.ModelForm):
             if re.match(pattern, value):
                 return value
         raise ValidationError('Please specify a valid JS snippet link')
+
+
+class ScheduleForm(forms.ModelForm):
+
+    class Meta:
+        model = Shift
+        template_name = 'schedule_form.html'
+        fields = (
+            'schedule_name',
+            'ical_url',
+        )
+        widgets = {
+            'schedule_name': forms.TextInput(attrs={'style': 'width:30%;'}),
+            'ical_url': forms.TextInput(attrs={'style': 'width:30%;'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        ret = super(ScheduleForm, self).__init__(*args, **kwargs)
+        return ret
+
+    def check_ical_url(self):
+        ical_url = self.cleaned_data['ical_url']
+        try:
+            resp = requests.get(self.feed_url)
+            calendar = Calendar.from_ical(resp.content)
 
 
 class StatusCheckReportForm(forms.Form):
