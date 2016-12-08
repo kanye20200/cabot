@@ -31,8 +31,8 @@ services:
   db:
     image: postgres
 
-  # wait for everything to start before continuing
   wait:
-    image: aanand/wait
-    links:
-      - db 
+    image: cabot:web
+    command: dockerize -wait tcp://db:5432 -timeout 20s
+    depends_on:
+      - db

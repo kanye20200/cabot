@@ -9,11 +9,13 @@ WORKDIR /code
 ENV DEBIAN_FRONTEND noninteractive
 
 RUN apt-get update && apt-get install -y \
+        apt-utils \
         python-dev \
         libsasl2-dev \
         libldap2-dev \
         libpq-dev \
-        npm
+        npm \ 
+        wget
 
 RUN npm install -g \
         --registry http://registry.npmjs.org/ \
@@ -30,7 +32,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY requirements-plugins.txt ./
 RUN pip install --no-cache-dir -r requirements-plugins.txt
 
-RUN pip install ipdb
+COPY requirements-dev.txt ./
+RUN pip install --no-cache-dir -r requirements-dev.txt
+
+ENV DOCKERIZE_VERSION v0.3.0
+RUN wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz \
+    && tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz \
+    && rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
 
 ADD . /code/
 
