@@ -10,33 +10,36 @@
     {% if not shifts %}
       <div class="col-xs-11 col-xs-offset-1">No shifts downloaded</div>
     {% else %}
-      {% for
-    <table class="table table-striped bootstrap-datatable datatable">
-      <thead>
-        <tr>
-          <th>User</th>
-          <th>Shift time</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for shift in shifts %}
-        <tr>
-          <td>
-            <a href="{% url "user-profile" pk=shift.user.id %}">{{ shift.user.username }}</a>
-          </td>
-          <td>
-            {{ shift.start }} - {{ shift.end }}
-          </td>
-          <td>
-            <a class="btn btn-xs" href="">
-              <i class="glyphicon glyphicon-share"></i><span class="break"></span>
-            </a>
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+    {# TODO: maybe dropdown menu #}
+    {% for schedule in schedules %}
+      <div class=""col-xs-11"<h2><span class="break"></span>{{ schedule.name }}</h2>
+      <table class="table table-striped bootstrap-datatable datatable">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Shift time</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for shift in schedules[schedule] %}
+          <tr>
+            <td>
+              <a href="{% url "user-profile" pk=shift.user.id %}">{{ shift.user.username }}</a>
+            </td>
+            <td>
+              {{ shift.start }} - {{ shift.end }}
+            </td>
+            <td>
+              <a class="btn btn-xs" href="">
+                <i class="glyphicon glyphicon-share"></i><span class="break"></span>
+              </a>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% endfor %}
     {% endif %}
   </div>
 </div>

@@ -15,6 +15,7 @@ from models import (StatusCheck,
                     Service,
                     Instance,
                     Shift,
+                    Schedule,
                     get_all_duty_officers)
 
 from tasks import run_status_check as _run_status_check
@@ -853,3 +854,20 @@ class AuthComplete(View):
 class LoginError(View):
     def get(self, request, *args, **kwargs):
         return HttpResponse(status=401)
+
+
+# TODO: login required?
+def rota_data(request):
+    """Load the shift_list template and pass a context which contains
+       shift/schedule data"""
+    schedules = Schedule.objects.all()
+    shifts_per_schedule = {}
+    for schedule in schedules:
+        shifts_per_schedule[schedule] = Shift.objects.filter(schedule=schedule)
+
+    template = loader.get_template('cabotapp/shift_list.html')
+    context = {
+        'schedules': shifts_per_schedule,
+    }
+    return HttpResponse(template.render(context, request))
+
