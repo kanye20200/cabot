@@ -14,8 +14,10 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from datetime import timedelta
+from icalendar import Calendar
 from itertools import groupby, dropwhile, izip_longest
 import re
+import requests
 
 
 class SymmetricalForm(forms.ModelForm):
@@ -337,9 +339,17 @@ class ScheduleForm(forms.ModelForm):
             'ical_url',
         )
         widgets = {
-            'name': forms.TextInput(attrs={'style': 'width: 30%;'}),
-            'ical_url': forms.TextInput(attrs={'style': 'width: 30%;'}),
+            'name': forms.TextInput(attrs={'style': 'width: 80%;'}),
+            'ical_url': forms.TextInput(attrs={'style': 'width: 80%;'}),
         }
+
+    def clean_ical_url(self):
+        """Check if input ical url is valid"""
+        try:
+            resp = requests.get(self.ical_url)
+            Calendar.from_ical(resp.content)
+        except Exception:
+            raise ValidationError('Invalid ical url')
 
     def __init__(self, *args, **kwargs):
         return super(ScheduleForm, self).__init__(*args, **kwargs)

@@ -11,8 +11,8 @@ class Migration(SchemaMigration):
         # Adding model 'Schedule'
         db.create_table(u'cabotapp_schedule', (
             (u'id', self.gf('django.db.models.fields.AutoField')(primary_key=True)),
-            ('name', self.gf('django.db.models.fields.TextField')(default='Main', unique=True)),
-            ('ical_url', self.gf('django.db.models.fields.TextField')(default='http://affirm.pagerduty.com/private/48f3d6712a7e2eeb3ae1e903d589c2dcb64f9e6fa21ce6e09135a841f2247186/feed/PW4LM7V')),
+            ('name', self.gf('django.db.models.fields.TextField')(unique=True)),
+            ('ical_url', self.gf('django.db.models.fields.TextField')()),
         ))
         db.send_create_signal(u'cabotapp', ['Schedule'])
 
@@ -23,7 +23,7 @@ class Migration(SchemaMigration):
 
         # Adding field 'Service.schedule'
         db.add_column(u'cabotapp_service', 'schedule',
-                      self.gf('django.db.models.fields.related.ForeignKey')(default=1, to=orm['cabotapp.Schedule']),
+                      self.gf('django.db.models.fields.related.ForeignKey')(default=1, to=orm['cabotapp.Schedule'], null=True, blank=True),
                       keep_default=False)
 
 
@@ -113,9 +113,9 @@ class Migration(SchemaMigration):
         },
         u'cabotapp.schedule': {
             'Meta': {'object_name': 'Schedule'},
-            'ical_url': ('django.db.models.fields.TextField', [], {'default': "'http://affirm.pagerduty.com/private/48f3d6712a7e2eeb3ae1e903d589c2dcb64f9e6fa21ce6e09135a841f2247186/feed/PW4LM7V'"}),
+            'ical_url': ('django.db.models.fields.TextField', [], {}),
             u'id': ('django.db.models.fields.AutoField', [], {'primary_key': 'True'}),
-            'name': ('django.db.models.fields.TextField', [], {'default': "'Main'", 'unique': 'True'})
+            'name': ('django.db.models.fields.TextField', [], {'unique': 'True'})
         },
         u'cabotapp.service': {
             'Meta': {'ordering': "['name']", 'object_name': 'Service'},
@@ -130,7 +130,7 @@ class Migration(SchemaMigration):
             'name': ('django.db.models.fields.TextField', [], {}),
             'old_overall_status': ('django.db.models.fields.TextField', [], {'default': "'PASSING'"}),
             'overall_status': ('django.db.models.fields.TextField', [], {'default': "'PASSING'"}),
-            'schedule': ('django.db.models.fields.related.ForeignKey', [], {'default': '1', 'to': u"orm['cabotapp.Schedule']"}),
+            'schedule': ('django.db.models.fields.related.ForeignKey', [], {'default': '1', 'to': u"orm['cabotapp.Schedule']", 'null': 'True', 'blank': 'True'}),
             'sms_alert': ('django.db.models.fields.BooleanField', [], {'default': 'False'}),
             'status_checks': ('django.db.models.fields.related.ManyToManyField', [], {'to': u"orm['cabotapp.StatusCheck']", 'symmetrical': 'False', 'blank': 'True'}),
             'telephone_alert': ('django.db.models.fields.BooleanField', [], {'default': 'False'}),

@@ -828,11 +828,6 @@ class TestSchedules(LocalTestCase):
                 is_active=True,
             )
 
-    def test_schedule_in_service(self):
-        """Test that the schedule in self.service is the one we expect"""
-        self.assertEqual(self.service.schedule.name, 'Principal')
-        self.assertEqual(self.service.schedule.ical_url, 'calendar_response.ics')
-
     @patch('cabot.cabotapp.models.requests.get', fake_calendar)
     def test_single_schedule(self):
         """Make sure the correct person is marked as a duty officer

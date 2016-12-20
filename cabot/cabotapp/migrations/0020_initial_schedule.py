@@ -3,13 +3,19 @@ from south.utils import datetime_utils as datetime
 from south.db import db
 from south.v2 import DataMigration
 from django.db import models
+from django.conf import settings
 
 class Migration(DataMigration):
 
     def forwards(self, orm):
-        """Create an inital schedule with default parameters"""
-        schedule = orm.Schedule.objects.create()
-        schedule.save()
+        """Create an inital schedule with default parameters (for backwards compatibility
+           with the single-calendar version"""
+        if settings.CALENDAR_ICAL_URL:
+            schedule = orm.Schedule.objects.create(
+                name='Main',
+                ical_url=settings.CALENDAR_ICAL_URL
+            )
+            schedule.save()
 
     def backwards(self, orm):
         pass
@@ -89,9 +95,9 @@ class Migration(DataMigration):
         },
         u'cabotapp.schedule': {
             'Meta': {'object_name': 'Schedule'},
-            'ical_url': ('django.db.models.fields.TextField', [], {'default': "'http://affirm.pagerduty.com/private/48f3d6712a7e2eeb3ae1e903d589c2dcb64f9e6fa21ce6e09135a841f2247186/feed/PW4LM7V'"}),
+            'ical_url': ('django.db.models.fields.TextField', [], {}),
             u'id': ('django.db.models.fields.AutoField', [], {'primary_key': 'True'}),
-            'name': ('django.db.models.fields.TextField', [], {'default': "'Main'", 'unique': 'True'})
+            'name': ('django.db.models.fields.TextField', [], {'unique': 'True'})
         },
         u'cabotapp.service': {
             'Meta': {'ordering': "['name']", 'object_name': 'Service'},
@@ -106,7 +112,7 @@ class Migration(DataMigration):
             'name': ('django.db.models.fields.TextField', [], {}),
             'old_overall_status': ('django.db.models.fields.TextField', [], {'default': "'PASSING'"}),
             'overall_status': ('django.db.models.fields.TextField', [], {'default': "'PASSING'"}),
-            'schedule': ('django.db.models.fields.related.ForeignKey', [], {'default': '1', 'to': u"orm['cabotapp.Schedule']"}),
+            'schedule': ('django.db.models.fields.related.ForeignKey', [], {'default': '1', 'to': u"orm['cabotapp.Schedule']", 'null': 'True', 'blank': 'True'}),
             'sms_alert': ('django.db.models.fields.BooleanField', [], {'default': 'False'}),
             'status_checks': ('django.db.models.fields.related.ManyToManyField', [], {'to': u"orm['cabotapp.StatusCheck']", 'symmetrical': 'False', 'blank': 'True'}),
             'telephone_alert': ('django.db.models.fields.BooleanField', [], {'default': 'False'}),

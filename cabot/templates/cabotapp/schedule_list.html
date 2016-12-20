@@ -15,6 +15,7 @@
         <tr>
           <th>Name</th>
           <th>Schedule</th>
+          <th>Duty officer</th>
           <th></th>
         </tr>
       </thead>
@@ -25,6 +26,11 @@
         </td>
         <td>
           <a href="{% url "shifts-pk" pk=schedule.id %} title="link">Link</a>
+        </td>
+        <td>
+          {% with duty_officers.officers|get_item:schedule as officer %}
+          {{ officer.username }}
+          {% endwith %}
         </td>
         <td class="text-right">
           <a class="btn btn-xs" href="{% url "update-schedule" pk=schedule.id %} role="button">

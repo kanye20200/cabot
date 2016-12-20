@@ -66,18 +66,6 @@ def calculate_debounced_passing(recent_results, debounce=0):
     return False
 
 
-class Schedule(models.Model):
-    name = models.TextField(default='Main', unique=True)
-    ical_url = models.TextField(default=settings.CALENDAR_ICAL_URL)
-
-    def get_calendar_data(self):
-        resp = requests.get(self.ical_url)
-        return Calendar.from_ical(resp.content)
-
-    def __unicode__(self):
-        return self.name
-
-
 class CheckGroupMixin(models.Model):
 
     class Meta:
@@ -233,6 +221,20 @@ class CheckGroupMixin(models.Model):
         return self.active_status_checks().exclude(calculated_status=self.CALCULATED_PASSING_STATUS)
 
 
+class Schedule(models.Model):
+    name = models.TextField(
+        unique=True,
+        help_text='Display name for the oncall schedule.')
+    ical_url = models.TextField(help_text='ical url of the oncall schedule.')
+
+    def get_calendar_data(self):
+        resp = requests.get(self.ical_url)
+        return Calendar.from_ical(resp.content)
+
+    def __unicode__(self):
+        return self.name
+
+
 class Service(CheckGroupMixin):
 
     def update_status(self):
@@ -253,6 +255,7 @@ class Service(CheckGroupMixin):
         self.save()
         if not (self.overall_status == Service.PASSING_STATUS and self.old_overall_status == Service.PASSING_STATUS):
             self.alert()
+
     instances = models.ManyToManyField(
         'Instance',
         blank=True,
@@ -263,7 +266,13 @@ class Service(CheckGroupMixin):
         blank=True,
         help_text="URL of service."
     )
-    schedule = models.ForeignKey('Schedule', default=1)
+
+    schedule = models.ForeignKey(
+        'Schedule',
+        blank=True,
+        default=1,
+        null=True,
+        help_text='Oncall schedule to be alerted.')
 
     class Meta:
         ordering = ['name']
@@ -1090,6 +1099,14 @@ def get_duty_officers(schedule, at_time=None):
             return [u.user]
         except UserProfile.DoesNotExist:
             return []
+
+
+def get_single_duty_officer(schedule, at_time=None):
+    """Return one of the duty officers on-call at the input time"""
+    officers = get_duty_officers(schedule, at_time)
+    if len(officers) > 0:
+        return officers[0]
+    return ''
 
 
 def get_all_duty_officers(at_time=None):

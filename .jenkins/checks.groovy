@@ -94,4 +94,3 @@ freeStyleJob('cabot.flake8') { job ->
     }
   }
 }
-

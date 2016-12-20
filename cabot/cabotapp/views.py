@@ -22,6 +22,7 @@ from models import (AlertPluginUserData,
                     Shift,
                     Schedule,
                     get_all_duty_officers,
+                    get_single_duty_officer,
                     update_shifts)
 
 from tasks import run_status_check as _run_status_check
@@ -402,29 +403,6 @@ class ScheduleDetailView(LoginRequiredMixin, DetailView):
         return context
 
 
-class ScheduleListView(LoginRequiredMixin, ListView):
-    model = Schedule
-    context_object_name = 'schedules'
-
-    def get_queryset(self):
-        return Schedule.objects.all().order_by('id')
-
-
-class ScheduleUpdateView(LoginRequiredMixin, UpdateView):
-    model = Schedule
-    context_object_name = 'schedules'
-
-    def get_success_url(self):
-        return reverse('schedule', kwargs={'pk': self.object.id})
-
-
-class ScheduleDeleteView(LoginRequiredMixin, DeleteView):
-    model = Schedule
-    success_url = reverse_lazy('shifts')
-    context_object_name = 'schedule'
-    template_name = 'cabotapp/schedule_confirm_delete.html'
-
-
 class InstanceCreateView(LoginRequiredMixin, CreateView):
     model = Instance
     form_class = InstanceForm
@@ -484,7 +462,7 @@ class ScheduleCreateView(LoginRequiredMixin, CreateView):
         update_shifts(schedule)
 
     def get_success_url(self):
-        return reverse('schedule', kwargs={'pk': self.object.id})
+        return reverse('shifts-pk', kwargs={'pk': self.object.id})
 
 
 class InstanceUpdateView(LoginRequiredMixin, UpdateView):
@@ -503,6 +481,15 @@ class ServiceUpdateView(LoginRequiredMixin, UpdateView):
         return reverse('service', kwargs={'pk': self.object.id})
 
 
+class ScheduleUpdateView(LoginRequiredMixin, UpdateView):
+    model = Schedule
+    form_class = ScheduleForm
+    context_object_name = 'schedules'
+
+    def get_success_url(self):
+        return reverse('shifts-pk', kwargs={'pk': self.object.id})
+
+
 class ServiceDeleteView(LoginRequiredMixin, DeleteView):
     model = Service
     success_url = reverse_lazy('services')
@@ -510,11 +497,37 @@ class ServiceDeleteView(LoginRequiredMixin, DeleteView):
     template_name = 'cabotapp/service_confirm_delete.html'
 
 
+class ScheduleDeleteView(LoginRequiredMixin, DeleteView):
+    model = Schedule
+    form_class = ScheduleForm
+
+    success_url = reverse_lazy('shifts')
+    context_object_name = 'schedule'
+    template_name = 'cabotapp/schedule_confirm_delete.html'
+
+
 class InstanceDeleteView(LoginRequiredMixin, DeleteView):
     model = Instance
     success_url = reverse_lazy('instances')
     context_object_name = 'instance'
     template_name = 'cabotapp/instance_confirm_delete.html'
+
+
+class ScheduleListView(LoginRequiredMixin, ListView):
+    model = Schedule
+    context_object_name = 'schedules'
+
+    def get_queryset(self):
+        return Schedule.objects.all().order_by('id')
+
+    def get_context_data(self, **kwargs):
+        """Add current duty officer to list page"""
+        context = super(ScheduleListView, self).get_context_data(**kwargs)
+        duty_officers = {schedule: get_single_duty_officer(schedule) for schedule in Schedule.objects.all()}
+        context['duty_officers'] = {
+            'officers': duty_officers,
+        }
+        return context
 
 
 class ShiftListView(LoginRequiredMixin, ListView):
@@ -534,6 +547,7 @@ class ShiftListView(LoginRequiredMixin, ListView):
         context = super(ShiftListView, self).get_context_data(**kwargs)
 
         context['schedule_name'] = Schedule.objects.get(id=self.kwargs['pk']).name
+        context['schedule_id'] = self.kwargs['pk']
         return context
 
 
