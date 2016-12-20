@@ -1,8 +1,9 @@
-import os
-import dj_database_url
-import re
 from cabot.celeryconfig import *
 from cabot.cabot_config import *
+
+import dj_database_url
+import os
+import re
 import xmlrunner
 
 settings_dir = os.path.dirname(__file__)
@@ -315,4 +316,3 @@ TEST_OUTPUT_DIR = './build/docker-compose'
 # default calendar url
 # TODO: remove
 CALENDAR_ICAL_URL = 'http://affirm.pagerduty.com/private/48f3d6712a7e2eeb3ae1e903d589c2dcb64f9e6fa21ce6e09135a841f2247186/feed/PW4LM7V'
-

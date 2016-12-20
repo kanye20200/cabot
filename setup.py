@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import os
 from setuptools import setup, find_packages
-from os import environ as env
 import pkg_resources
 
 requirements_file = os.path.join(os.path.dirname(__file__), 'requirements.txt')

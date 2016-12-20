@@ -144,13 +144,12 @@ class CheckGroupMixin(models.Model):
         null=True,
         blank=True,
         verbose_name='Recovery instructions',
-        help_text='Gist, Hackpad or Refheap js embed with recovery instructions e.g. https://you.hackpad.com/some_document.js'
+        help_text='Gist, Hackpad or Refheap js embed with recovery instructions e.g. '
+                  'https://you.hackpad.com/some_document.js'
     )
-
 
     def __unicode__(self):
         return self.name
-
 
     def most_severe(self, check_list):
         failures = [c.importance for c in check_list]
@@ -178,10 +177,12 @@ class CheckGroupMixin(models.Model):
         if self.overall_status != self.PASSING_STATUS:
             # Don't alert every time
             if self.overall_status == self.WARNING_STATUS:
-                if self.last_alert_sent and (timezone.now() - timedelta(minutes=settings.NOTIFICATION_INTERVAL)) < self.last_alert_sent:
+                if self.last_alert_sent and (timezone.now() - timedelta(minutes=settings.NOTIFICATION_INTERVAL)) \
+                        < self.last_alert_sent:
                     return
             elif self.overall_status in (self.CRITICAL_STATUS, self.ERROR_STATUS):
-                if self.last_alert_sent and (timezone.now() - timedelta(minutes=settings.ALERT_INTERVAL)) < self.last_alert_sent:
+                if self.last_alert_sent and (timezone.now() - timedelta(minutes=settings.ALERT_INTERVAL)) \
+                        < self.last_alert_sent:
                     return
             self.last_alert_sent = timezone.now()
         else:
@@ -231,6 +232,7 @@ class CheckGroupMixin(models.Model):
     def all_failing_checks(self):
         return self.active_status_checks().exclude(calculated_status=self.CALCULATED_PASSING_STATUS)
 
+
 class Service(CheckGroupMixin):
 
     def update_status(self):
@@ -268,7 +270,6 @@ class Service(CheckGroupMixin):
 
 
 class Instance(CheckGroupMixin):
-
 
     def duplicate(self):
         checks = self.status_checks.all()
@@ -319,6 +320,7 @@ class Instance(CheckGroupMixin):
         self.icmp_status_checks().delete()
         return super(Instance, self).delete(*args, **kwargs)
 
+
 class Snapshot(models.Model):
 
     class Meta:
@@ -331,17 +333,20 @@ class Snapshot(models.Model):
     overall_status = models.TextField(default=Service.PASSING_STATUS)
     did_send_alert = models.IntegerField(default=False)
 
+
 class ServiceStatusSnapshot(Snapshot):
     service = models.ForeignKey(Service, related_name='snapshots')
 
     def __unicode__(self):
         return u"%s: %s" % (self.service.name, self.overall_status)
 
+
 class InstanceStatusSnapshot(Snapshot):
     instance = models.ForeignKey(Instance, related_name='snapshots')
 
     def __unicode__(self):
         return u"%s: %s" % (self.instance.name, self.overall_status)
+
 
 class StatusCheck(PolymorphicModel):
 
@@ -365,7 +370,9 @@ class StatusCheck(PolymorphicModel):
         max_length=30,
         choices=Service.IMPORTANCES,
         default=Service.ERROR_STATUS,
-        help_text='Severity level of a failure. Critical alerts are for failures you want to wake you up at 2am, Errors are things you can sleep through but need to fix in the morning, and warnings for less important things.'
+        help_text='Severity level of a failure. Critical alerts are for failures you want to wake you up at 2am, '
+                  'Errors are things you can sleep through but need to fix in the morning, '
+                  'and warnings for less important things.'
     )
     interval = models.IntegerField(
         default=5,
@@ -378,7 +385,8 @@ class StatusCheck(PolymorphicModel):
     debounce = models.IntegerField(
         default=0,
         null=True,
-        help_text='Number of successive failures permitted before check will be marked as failed. Default is 0, i.e. fail on first failure.'
+        help_text='Number of successive failures permitted before check will be marked as failed. '
+                  'Default is 0, i.e. fail on first failure.'
     )
     created_by = models.ForeignKey(User, null=True)
     calculated_status = models.CharField(
@@ -572,7 +580,7 @@ class StatusCheck(PolymorphicModel):
             self.cached_health = serialize_recent_results(recent_results)
             try:
                 updated = StatusCheck.objects.get(pk=self.pk)
-            except StatusCheck.DoesNotExist as e:
+            except StatusCheck.DoesNotExist:
                 logger.error('Cannot find myself (check %s) in the database, presumably have been deleted' % self.pk)
                 return
         else:
@@ -603,6 +611,7 @@ class StatusCheck(PolymorphicModel):
         for instance in instances:
             update_instance.delay(instance.id)
 
+
 class ICMPStatusCheck(StatusCheck):
 
     class Meta(StatusCheck.Meta):
@@ -617,8 +626,12 @@ class ICMPStatusCheck(StatusCheck):
         instances = self.instance_set.all()
         target = self.instance_set.get().address
 
-        # We need to read both STDOUT and STDERR because ping can write to both, depending on the kind of error. Thanks a lot, ping.
-        ping_process = subprocess.Popen("ping -c 1 " + target, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+        # We need to read both STDOUT and STDERR because ping can write to both, depending on the kind of error.
+        # Thanks a lot, ping.
+        ping_process = subprocess.Popen("ping -c 1 " + target,
+                                        stdout=subprocess.PIPE,
+                                        stderr=subprocess.STDOUT,
+                                        shell=True)
         response = ping_process.wait()
 
         if response == 0:
@@ -660,8 +673,8 @@ class GraphiteStatusCheck(StatusCheck):
                 return u'Hosts missing%s' % hosts_string
         if self.expected_num_metrics > 0:
             metrics_string = u'%s | %s/%s metrics' % (name,
-                                                actual_metrics,
-                                                self.expected_num_metrics)
+                                                      actual_metrics,
+                                                      self.expected_num_metrics)
             if self.expected_num_metrics > actual_metrics:
                 return u'Metrics condition missed for %s' % metrics_string
         if failure_value is None:
@@ -749,8 +762,8 @@ class GraphiteStatusCheck(StatusCheck):
                     time_stamp = point[1]
 
                     if time_stamp <= reference_point:
-                        logger.debug('Point %s is older than ref ts %d' % \
-                            (str(point), reference_point))
+                        logger.debug('Point %s is older than ref ts %d' %
+                                     (str(point), reference_point))
                         continue
 
                     if last_value is not None:
@@ -847,14 +860,14 @@ class HttpStatusCheck(StatusCheck):
 
         try:
             resp = requests.request(
-                method = self.http_method,
-                url = self.endpoint,
-                data = http_body,
-                params = http_params,
-                timeout = self.timeout,
-                verify = self.verify_ssl_certificate,
-                auth = auth,
-                allow_redirects = self.allow_http_redirects
+                method=self.http_method,
+                url=self.endpoint,
+                data=http_body,
+                params=http_params,
+                timeout=self.timeout,
+                verify=self.verify_ssl_certificate,
+                auth=auth,
+                allow_redirects=self.allow_http_redirects
             )
         except requests.RequestException as e:
             result.error = u'Request error occurred: %s' % (e.message,)
@@ -888,6 +901,7 @@ class HttpStatusCheck(StatusCheck):
             result.succeeded = True
 
         return result
+
 
 class JenkinsStatusCheck(StatusCheck):
 
@@ -1124,5 +1138,5 @@ def update_shifts(schedule):
             s.end = event['end']
             s.user = user
             s.deleted = False
-            s.schedule=schedule
+            s.schedule = schedule
             s.save()

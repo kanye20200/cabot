@@ -1,28 +1,28 @@
 # -*- coding: utf-8 -*-
 
-import requests
-from django.conf import settings
-from django.utils import timezone
-from django.core import mail
-from django.core.urlresolvers import reverse
-from django.contrib.auth.models import User
-from django.test.client import Client
-from django.contrib.auth.models import Permission
-from rest_framework import status, HTTP_HEADER_ENCODING
-from rest_framework.test import APITestCase
-from rest_framework.reverse import reverse as api_reverse
-from twilio import rest
-from datetime import timedelta, date, datetime
-import json
-import os
-import base64
-from mock import Mock, patch
-
 from cabot.cabotapp.models import (
     get_duty_officers, get_all_duty_officers, update_shifts, GraphiteStatusCheck,
     JenkinsStatusCheck, HttpStatusCheck, ICMPStatusCheck,
     Service, Schedule, Instance, StatusCheckResult, UserProfile)
 from cabot.cabotapp.views import StatusCheckReportForm
+
+from django.contrib.auth.models import Permission, User
+from django.core import mail
+from django.core.urlresolvers import reverse
+from django.test.client import Client
+from django.utils import timezone
+from datetime import timedelta, date, datetime
+
+import base64
+import json
+from mock import Mock, patch
+import os
+import requests
+from rest_framework import status, HTTP_HEADER_ENCODING
+from rest_framework.test import APITestCase
+from rest_framework.reverse import reverse as api_reverse
+from twilio import rest
+
 
 def get_content(fname):
     path = os.path.join(os.path.dirname(__file__), 'fixtures/%s' % fname)
@@ -180,7 +180,6 @@ def throws_timeout(*args, **kwargs):
 
 
 class TestCheckRun(LocalTestCase):
-
 
     def test_calculate_service_status(self):
         self.assertEqual(self.graphite_check.calculated_status,
@@ -381,8 +380,6 @@ class TestWebInterface(LocalTestCase):
         )
         self.assertEqual(resp.status_code, 200)
         reloaded = Service.objects.get(id=self.service.id)
-        #self.assertEqual(resp.content, 'elaine')
-        #self.assertEqual(reloaded, 'elaine')
         self.assertEqual(reloaded.hackpad_id, snippet_link)
         # Now one on the blacklist
         blacklist_link = 'https://unapproved_link.domain.com/wiki-7YaNlsC11bB.js'
@@ -411,6 +408,7 @@ class TestWebInterface(LocalTestCase):
             },
             follow=True,
         )
+        self.assertEqual(resp.status_code, 200)
         instances = Instance.objects.all()
         self.assertEqual(len(instances), 1)
         instance = instances[0]
@@ -672,7 +670,7 @@ class TestAPI(LocalTestCase):
     def test_posts(self):
         for model, items in self.post_data.items():
             for item in items:
-                # hackpad_id and other null text fields omitted on create 
+                # hackpad_id and other null text fields omitted on create
                 # for now due to rest_framework bug:
                 # https://github.com/tomchristie/django-rest-framework/issues/1879
                 # Update: This has been fixed in master:
@@ -685,13 +683,14 @@ class TestAPI(LocalTestCase):
                 self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
                 self.assertTrue('id' in create_response.data)
                 item['id'] = create_response.data['id']
-                for field in ('hackpad_id', 'username', 'password'): # See comment above
+                for field in ('hackpad_id', 'username', 'password'):  # See comment above
                     if field in create_response.data:
                         item[field] = None
                 self.assertEqual(self.normalize_dict(create_response.data), item)
                 get_response = self.client.get(api_reverse('{}-detail'.format(model), args=[item['id']]),
                                                format='json', HTTP_AUTHORIZATION=self.basic_auth)
                 self.assertEqual(self.normalize_dict(get_response.data), item)
+
 
 class TestAPIFiltering(LocalTestCase):
     def setUp(self):
@@ -743,7 +742,7 @@ class TestAPIFiltering(LocalTestCase):
         self.basic_auth = 'Basic {}'.format(
             base64.b64encode(
                 '{}:{}'.format(self.username, self.password)
-                    .encode(HTTP_HEADER_ENCODING)
+                       .encode(HTTP_HEADER_ENCODING)
             ).decode(HTTP_HEADER_ENCODING)
         )
 
@@ -796,8 +795,8 @@ class TestAlerts(LocalTestCase):
         super(TestAlerts, self).setUp()
 
         self.user_profile = UserProfile.objects.create(
-            user = self.user,
-            hipchat_alias = "test_user_hipchat_alias",)
+            user=self.user,
+            hipchat_alias="test_user_hipchat_alias",)
         self.user_profile.save()
 
         self.service.users_to_notify.add(self.user)
@@ -854,7 +853,6 @@ class TestSchedules(LocalTestCase):
         officers = get_duty_officers(self.schedule, at_time=datetime(2016, 11, 8, 10, 0, 0))
         usernames = [str(user.username) for user in officers]
         self.assertEqual(usernames, ['teddy@affirm.com'])
-
 
     @patch('cabot.cabotapp.models.requests.get', fake_calendar)
     def test_multiple_schedules(self):
