@@ -11,7 +11,6 @@ String script(target) {
   |set -o pipefail
   |rm -rf .tox # rm old virtualenvs
   |PY_COLORS=1 tox -e ${target}
-  |rm -rf static # remove it here because git clean can't
   """.stripMargin()
 }
 
